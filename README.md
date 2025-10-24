@@ -1,2 +1,2 @@
-# paku
-NEAT-powered self-learning AI for Pac-Man-like game
+# Paku
+Genetic AI that evolves to play an implementation of Pac-Man, powered by [Tyrosine](https://github.com/genomicals/tyrosine/).
