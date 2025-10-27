@@ -1,17 +1,41 @@
 use ndarray::Array2;
-use std::fmt::Display;
 use std::fs;
 use std::path::Path;
+use thiserror::Error;
 
+#[derive(Debug, Error)]
 pub enum PacError {
+    #[error("Failed to read level file.")]
     FileRead,
+    #[error("Level file empty or width 0.")]
+    LevelEmpty,
+    #[error("Level not rectangular, rows or column counts are irregular.")]
+    LevelNotRectangular,
+
+    #[error("Couldn't locate a Pac-Man spawn.")]
     NoPacSpawn,
-    Idek,
-}
-impl Display for PacError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!();
-    }
+    #[error("Found multiple Pac-Man spawns.")]
+    MultiplePacSpawns,
+    #[error("Stray $ used. Must be used as a horizontal pair to declare the Pac-Man spawn.")]
+    InvalidPacSpawn,
+
+    #[error("Couldn't locate a Ghost spawn.")]
+    NoGhostSpawn,
+    #[error("Found multiple Ghost spawns.")]
+    MultipleGhostSpawns,
+    #[error(
+        "Stray @ used. Must be used as a 8-long x 5-wide rectangle to declare the Ghost spawn."
+    )]
+    InvalidGhostSpawn,
+    #[error(
+        "Warp numbers must appear in pairs, and must use contiguous numbers starting at 1. Each number can only be used twice (one pair)."
+    )]
+    InvalidWarp,
+
+    #[error("Invalid characters found.")]
+    InvalidCharacters,
+    #[error("Yeah idk what causes this error yet, but it happens when converting to a 2D NDArray.")]
+    ConversionToArray,
 }
 
 pub struct Game {
@@ -42,26 +66,29 @@ impl Game {
     }
 
     fn try_from_file(path: &Path) -> Result<Self, PacError> {
-        let txt = fs::read_to_string(path).map_err(|x| PacError::FileRead)?;
-        let mut rows: Vec<Vec<char>> = txt.lines().map(|l| l.chars().collect::<Vec<_>>()).collect();
+        let txt = fs::read_to_string(path).map_err(|_| PacError::FileRead)?;
+        let rows: Vec<Vec<char>> = txt.lines().map(|l| l.chars().collect::<Vec<_>>()).collect();
 
         if rows.is_empty() {
-            panic!("level file is empty");
+            return Err(PacError::LevelEmpty);
+            //panic!("level file is empty");
         }
 
         let width = rows[0].len();
         if width == 0 {
-            panic!("level width is zero");
+            return Err(PacError::LevelEmpty);
+            //panic!("level width is zero");
         }
         // ensure rectangle
         for (i, r) in rows.iter().enumerate() {
             if r.len() != width {
-                panic!(
-                    "level is not rectangular: row 0 has width {}, row {} has width {}",
-                    width,
-                    i,
-                    r.len()
-                );
+                return Err(PacError::LevelNotRectangular);
+                //panic!(
+                //    "level is not rectangular: row 0 has width {}, row {} has width {}",
+                //    width,
+                //    i,
+                //    r.len()
+                //);
             }
         }
         let height = rows.len();
@@ -91,7 +118,8 @@ impl Game {
                 if all_at {
                     // ensure we haven't already found one
                     if ghost_top_left.is_some() {
-                        panic!("multiple 8x5 '@' blocks (only one ghost spawn allowed)");
+                        return Err(PacError::MultipleGhostSpawns);
+                        //panic!("multiple 8x5 '@' blocks (only one ghost spawn allowed)");
                     }
                     ghost_top_left = Some((x, y));
                     // mark consumed
@@ -104,13 +132,14 @@ impl Game {
             }
         }
         if ghost_top_left.is_none() {
+            return Err(PacError::NoGhostSpawn);
             // Also check possibility of stray single '@' chars
-            let any_at = rows.iter().flatten().any(|&c| c == '@');
-            if any_at {
-                panic!("'@' characters present but not forming a single 8x5 block");
-            } else {
-                panic!("no '@' block found: ghost spawn (8x5 of '@') is required");
-            }
+            //let any_at = rows.iter().flatten().any(|&c| c == '@');
+            //if any_at {
+            //panic!("'@' characters present but not forming a single 8x5 block");
+            //} else {
+            //panic!("no '@' block found: ghost spawn (8x5 of '@') is required");
+            //}
         }
         let (gtx, gty) = ghost_top_left.unwrap();
         // center of 8x5 block: top_left + (3,2)
@@ -123,7 +152,8 @@ impl Game {
                 if !consumed[y][x] && !consumed[y][x + 1] {
                     if rows[y][x] == '$' && rows[y][x + 1] == '$' {
                         if pacman_loc.is_some() {
-                            panic!("multiple '$$' pacman spawns found (only one allowed)");
+                            return Err(PacError::MultiplePacSpawns);
+                            //panic!("multiple '$$' pacman spawns found (only one allowed)");
                         }
                         pacman_loc = Some((x, y));
                         consumed[y][x] = true;
@@ -136,10 +166,11 @@ impl Game {
         for y in 0..height {
             for x in 0..width {
                 if rows[y][x] == '$' && !consumed[y][x] {
-                    panic!(
-                        "stray '$' found at ({},{}); pacman spawn must be exactly two adjacent '$' characters",
-                        x, y
-                    );
+                    return Err(PacError::InvalidPacSpawn);
+                    //panic!(
+                    //    "stray '$' found at ({},{}); pacman spawn must be exactly two adjacent '$' characters",
+                    //    x, y
+                    //);
                 }
             }
         }
@@ -167,35 +198,39 @@ impl Game {
             // check each digit count == 2
             for (&id, &count) in warp_counts.iter() {
                 if count != 2 {
-                    panic!(
-                        "warp digit '{}' appears {} times; each warp digit must appear exactly twice",
-                        id, count
-                    );
+                    return Err(PacError::InvalidWarp);
+                    //panic!(
+                    //    "warp digit '{}' appears {} times; each warp digit must appear exactly twice",
+                    //    id, count
+                    //);
                 }
             }
             // ensure digits start at 1 and contiguous
             let mut ids: Vec<u8> = warp_counts.keys().cloned().collect();
             ids.sort();
             if ids[0] != 1 {
-                panic!(
-                    "warps must start at '1' if any warps are present; found smallest warp '{}'",
-                    ids[0]
-                );
+                return Err(PacError::InvalidWarp);
+                //panic!(
+                //    "warps must start at '1' if any warps are present; found smallest warp '{}'",
+                //    ids[0]
+                //);
             }
             for (i, &id) in ids.iter().enumerate() {
                 if id as usize != i + 1 {
-                    panic!(
-                        "warp digits must be contiguous starting at 1. expected {}, found {}",
-                        i + 1,
-                        id
-                    );
+                    return Err(PacError::InvalidWarp);
+                    //panic!(
+                    //    "warp digits must be contiguous starting at 1. expected {}, found {}",
+                    //    i + 1,
+                    //    id
+                    //);
                 }
             }
             if ids.len() > 9 {
-                panic!(
-                    "at most 9 distinct warp ids (1..9) supported; found {}",
-                    ids.len()
-                );
+                return Err(PacError::InvalidWarp);
+                //panic!(
+                //    "at most 9 distinct warp ids (1..9) supported; found {}",
+                //    ids.len()
+                //);
             }
         }
 
@@ -203,10 +238,11 @@ impl Game {
         for y in 0..height {
             for x in 0..width {
                 if rows[y][x] == '@' && !consumed[y][x] {
-                    panic!(
-                        "'@' found outside the 8x5 ghost spawn block at ({},{})",
-                        x, y
-                    );
+                    return Err(PacError::InvalidGhostSpawn);
+                    //panic!(
+                    //    "'@' found outside the 8x5 ghost spawn block at ({},{})",
+                    //    x, y
+                    //);
                 }
             }
         }
@@ -237,15 +273,17 @@ impl Game {
                         // warps stored as negative numbers: -id
                         -id
                     }
-                    other => {
-                        panic!("unexpected char '{}' at ({},{})", other, x, y);
+                    _ => {
+                        return Err(PacError::InvalidCharacters);
+                        //panic!("unexpected char '{}' at ({},{})", other, x, y);
                     }
                 };
                 flat.push(value);
             }
         }
 
-        let board = Array2::from_shape_vec((height, width), flat).map_err(|x| PacError::Idek)?;
+        let board = Array2::from_shape_vec((height, width), flat)
+            .map_err(|_| PacError::ConversionToArray)?;
 
         // set ghosts: place all ghosts at ghost_spawn
         let (gx, gy) = ghost_spawn;
