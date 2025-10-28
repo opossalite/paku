@@ -1,44 +1,23 @@
 use ndarray::Array2;
 use std::fs;
 use std::path::Path;
-use thiserror::Error;
 
-#[derive(Debug, Error)]
-pub enum PacError {
-    #[error("Failed to read level file.")]
-    FileRead,
-    #[error("Level file empty or width 0.")]
-    LevelEmpty,
-    #[error("Level not rectangular, rows or column counts are irregular.")]
-    LevelNotRectangular,
+use crate::PacError;
 
-    #[error("Couldn't locate a Pac-Man spawn.")]
-    NoPacSpawn,
-    #[error("Found multiple Pac-Man spawns.")]
-    MultiplePacSpawns,
-    #[error("Stray $ used. Must be used as a horizontal pair to declare the Pac-Man spawn.")]
-    InvalidPacSpawn,
+/*
+NOTES:
+https://pacman.holenet.info/
 
-    #[error("Couldn't locate a Ghost spawn.")]
-    NoGhostSpawn,
-    #[error("Found multiple Ghost spawns.")]
-    MultipleGhostSpawns,
-    #[error(
-        "Stray @ used. Must be used as a 8-long x 5-wide rectangle to declare the Ghost spawn."
-    )]
-    InvalidGhostSpawn,
-    #[error(
-        "Warp numbers must appear in pairs, and must use contiguous numbers starting at 1. Each number can only be used twice (one pair)."
-    )]
-    InvalidWarp,
+The fruit appears after 70 dots are eaten and again after 170 dots are eaten unless the first fruit is still there. They will disappear if they are not eaten after 9-10 seconds.
 
-    #[error("Invalid characters found.")]
-    InvalidCharacters,
-    #[error("Yeah idk what causes this error yet, but it happens when converting to a 2D NDArray.")]
-    ConversionToArray,
-}
+Power Pellet Durations:
+*/
 
 pub struct Game {
+    /*
+    note: these are 4x as fine as the tiles of the map
+    - the map is 28x31, so entities have a map of 112x124
+    */
     pub pacman_loc: (usize, usize),
     pub blinky_loc: (usize, usize),
     pub pinky_loc: (usize, usize),
@@ -47,6 +26,28 @@ pub struct Game {
 
     /// center, entrance is located 3 tiles up
     pub ghost_spawn: (usize, usize),
+
+    /// up to 3, can only gain one life at 10000pts and thats it
+    pub lives: usize,
+
+    /*
+    breakdown:
+    pac-dot: 10pts
+    power pellet: 50pts
+    eating ghost: 200, 400, 800, 1600 (in sequence)
+    fruit: 100-5000pts depending on level:
+    | Level | Item                 | Points |
+    | ----- | -------------------- | ------ |
+    | 1     | Cherry               | 100    |
+    | 2     | Strawberry           | 300    |
+    | 3–4   | Orange               | 500    |
+    | 5–6   | Apple                | 700    |
+    | 7–8   | Melon                | 1,000  |
+    | 9–10  | Galaxian (spaceship) | 2,000  |
+    | 11–12 | Bell                 | 3,000  |
+    | 13+   | Key                  | 5,000  |
+    */
+    pub points: usize,
 
     /*
     <0 = warp (paired)
