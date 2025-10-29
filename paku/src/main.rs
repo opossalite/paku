@@ -7,7 +7,7 @@ use thiserror::Error;
 pub enum PacError {
     #[error("Failed to read level file.")]
     FileRead,
-    #[error("Level file empty or width 0.")]
+    #[error("Level file empty or width 0. Ensure no empty lines.")]
     LevelEmpty,
     #[error("Level not rectangular, rows or column counts are irregular.")]
     LevelNotRectangular,
@@ -16,7 +16,9 @@ pub enum PacError {
     NoPacSpawn,
     #[error("Found multiple Pac-Man spawns.")]
     MultiplePacSpawns,
-    #[error("Stray $ used. Must be used as a horizontal pair to declare the Pac-Man spawn.")]
+    #[error(
+        "Stray $ might've been used. Must be used as a horizontal pair to declare the Pac-Man spawn. Only one Pac-Man spawn allowed."
+    )]
     InvalidPacSpawn,
 
     #[error("Couldn't locate a Ghost spawn.")]
@@ -24,9 +26,13 @@ pub enum PacError {
     #[error("Found multiple Ghost spawns.")]
     MultipleGhostSpawns,
     #[error(
-        "Stray @ used. Must be used as a 8-long x 5-wide rectangle to declare the Ghost spawn."
+        "Stray @ might've been used. Must be used as a 8-long x 5-wide rectangle to declare the Ghost spawn. Only one spawn allowed."
     )]
     InvalidGhostSpawn,
+    #[error(
+        "Two blank spaces above and below the center of the spawn must be available for ghost and fruit spawning."
+    )]
+    InvalidGhostSpawnPeripheral,
     #[error(
         "Warp numbers must appear in pairs, and must use contiguous numbers starting at 1. Each number can only be used twice (one pair)."
     )]
