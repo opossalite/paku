@@ -1,7 +1,11 @@
 mod pacman;
 mod tyrosine_wrap;
 
+use std::path::Path;
+
 use thiserror::Error;
+
+use crate::pacman::Game;
 
 #[derive(Debug, Error)]
 pub enum PacError {
@@ -45,5 +49,7 @@ pub enum PacError {
 }
 
 fn main() {
+    let x = Game::try_from_file(Path::new("./config/levels/0.lvl")).unwrap();
+
     println!("Hello, world!");
 }

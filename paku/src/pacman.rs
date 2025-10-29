@@ -63,7 +63,7 @@ pub struct Game {
 }
 
 impl Game {
-    fn try_from_file(path: &Path) -> Result<Self, PacError> {
+    pub fn try_from_file(path: &Path) -> Result<Self, PacError> {
         let txt = fs::read_to_string(path).map_err(|_| PacError::FileRead)?;
         let rows: Vec<Vec<char>> = txt.lines().map(|l| l.chars().collect::<Vec<_>>()).collect();
 
@@ -135,10 +135,16 @@ impl Game {
                 return Err(PacError::NoGhostSpawn);
             }
             Some(tup) => {
-                if rows[tup.0 - 1][tup.1 + 3] == ' '
-                    && rows[tup.0 - 1][tup.1 + 4] == ' '
-                    && rows[tup.0 + 5][tup.1 + 3] == ' '
-                    && rows[tup.0 + 5][tup.1 + 4] == ' '
+                // quick bounds check
+                if tup.1 == 0 || tup.1 + 5 >= height {
+                    return Err(PacError::InvalidGhostSpawnPeripheral);
+                }
+
+                // ensure empty spaces above and below center for ghost and fruit spawning
+                if rows[tup.1 - 1][tup.0 + 3] == ' '
+                    && rows[tup.1 - 1][tup.0 + 4] == ' '
+                    && rows[tup.1 + 5][tup.0 + 3] == ' '
+                    && rows[tup.1 + 5][tup.0 + 4] == ' '
                 {
                     ghost_spawn = tup;
                 } else {
