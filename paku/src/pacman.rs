@@ -10,6 +10,13 @@ NOTES:
 https://pacman.holenet.info/
 
 The fruit appears after 70 dots are eaten and again after 170 dots are eaten unless the first fruit is still there. They will disappear if they are not eaten after 9-10 seconds.
+
+Possibly spawn ghosts in this way:
+- Blinky instantly
+- Pinky after 1 dot eaten
+- Inky after 2 dots eaten
+- Clyde after 3 dots eaten
+as this will space the ghosts apart by 1 tile, so no overlap
 */
 
 pub struct Game {
