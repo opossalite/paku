@@ -24,11 +24,14 @@ pub struct Game {
     note: these are 4x as fine as the tiles of the map
     - the map is 28x31, so entities have a map of 112x124
     */
-    pub pacman_loc: (usize, usize),
-    pub blinky_loc: (usize, usize),
-    pub pinky_loc: (usize, usize),
-    pub inky_loc: (usize, usize),
-    pub clyde_loc: (usize, usize),
+    pub pacman_loc: (f64, f64),
+    pub blinky_loc: (f64, f64),
+    pub pinky_loc: (f64, f64),
+    pub inky_loc: (f64, f64),
+    pub clyde_loc: (f64, f64),
+
+    /// left of the 2x1
+    pub pacman_spawn: (usize, usize),
 
     /// top left of the 8x5
     pub ghost_spawn: (usize, usize),
@@ -161,15 +164,15 @@ impl Game {
         }
 
         // 2) Find pacman spawn: exactly one horizontal "$$" (2x1)
-        let mut pacman_loc: Option<(usize, usize)> = None;
+        let mut pacman_spawn: Option<(usize, usize)> = None;
         for y in 0..height {
             for x in 0..width.saturating_sub(1) {
                 if !consumed[y][x] && !consumed[y][x + 1] {
                     if rows[y][x] == '$' && rows[y][x + 1] == '$' {
-                        if pacman_loc.is_some() {
+                        if pacman_spawn.is_some() {
                             return Err(PacError::MultiplePacSpawns);
                         }
-                        pacman_loc = Some((x, y));
+                        pacman_spawn = Some((x, y));
                         consumed[y][x] = true;
                         consumed[y][x + 1] = true;
                     }
@@ -184,7 +187,7 @@ impl Game {
                 }
             }
         }
-        let pacman_loc = pacman_loc.ok_or_else(|| PacError::NoPacSpawn)?;
+        let pacman_spawn = pacman_spawn.ok_or_else(|| PacError::NoPacSpawn)?;
 
         // 3) Collect digits (warps)
         //let mut warp_counts: HashMap<u8, usize> = HashMap::new();
@@ -270,17 +273,18 @@ impl Game {
         let board = Array2::from_shape_vec((height, width), flat)
             .map_err(|_| PacError::ConversionToArray)?;
 
-        // set ghosts: place all ghosts at ghost_spawn
+        // spawns: place all ghosts at ghost_spawn and pacman at pacman_spawn
+        let (px, py) = pacman_spawn;
         let (gx, gy) = ghost_spawn;
-        let (pacx, pacy) = pacman_loc;
 
         Ok(Game {
-            pacman_loc: (pacx, pacy),
-            blinky_loc: (gx, gy),
-            pinky_loc: (gx, gy),
-            inky_loc: (gx, gy),
-            clyde_loc: (gx, gy),
-            ghost_spawn: (gx, gy),
+            pacman_spawn,
+            ghost_spawn,
+            pacman_loc: (px as f64 + 0.5, py as f64), //center pacman properly in his spawn
+            blinky_loc: (gx as f64 + 3.5, gy as f64 - 1.0), //place blinky above the spawn
+            pinky_loc: (gx as f64 + 3.5, gy as f64 + 2.0), //place pinky at the center of spawn
+            inky_loc: (gx as f64 + 1.5, gy as f64 + 2.0), //place inky on the left of pinky
+            clyde_loc: (gx as f64 + 5.5, gy as f64 + 2.0), //place clyde on the right of pinky
             board,
             lives: 3,
             points: 0,
@@ -288,4 +292,3 @@ impl Game {
         })
     }
 }
-
