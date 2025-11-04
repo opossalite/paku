@@ -1,8 +1,10 @@
 mod pacman;
 mod tyrosine_wrap;
+mod settings_parser;
 
 use std::path::Path;
 
+use csv::Error;
 use thiserror::Error;
 
 use crate::pacman::Game;
@@ -10,7 +12,11 @@ use crate::pacman::Game;
 #[derive(Debug, Error)]
 pub enum PacError {
     #[error("Failed to read level file.")]
-    FileRead,
+    FileReadLevel,
+    #[error("Failed to read settings file.")]
+    FileReadSettings,
+    #[error("Issue parsing the settings CSV file.")]
+    CSVParse(Error),
     #[error("Level file empty or width 0. Ensure no empty lines.")]
     LevelEmpty,
     #[error("Level not rectangular, rows or column counts are irregular.")]
@@ -49,7 +55,10 @@ pub enum PacError {
 }
 
 fn main() {
-    let x = Game::try_from_file(Path::new("./config/levels/0.lvl")).unwrap();
+    match Game::try_from_file(Path::new("./config/levels/0.lvl"), Path::new("./config/settings.csv")) {
+        Ok(game) => {let game = game;},
+        Err(err) => {println!("{}\n{:?}", err, err);},
+    }
 
     println!("Hello, world!");
 }

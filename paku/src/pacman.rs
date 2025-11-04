@@ -1,9 +1,12 @@
+use csv::ReaderBuilder;
 use ndarray::Array2;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
+use std::fs::File;
 use std::path::Path;
 
-use crate::PacError;
+use crate::{PacError, settings_parser::{self, GameSettingsRow, try_settings_from_file}};
 
 /*
 NOTES:
@@ -18,6 +21,14 @@ Possibly spawn ghosts in this way:
 - Clyde after 3 dots eaten
 as this will space the ghosts apart by 1 tile, so no overlap
 */
+
+pub enum Entity {
+    Blinky,
+    Pinky,
+    Inky,
+    Clyde,
+    PacMan,
+}
 
 pub struct Game {
     /*
@@ -59,7 +70,7 @@ pub struct Game {
     | 11–12 | Bell                 | 3,000  |
     | 13+   | Key                  | 5,000  |
     */
-    pub points: usize,
+    pub score: usize,
 
     /*
     <0 = warp (paired)
@@ -70,11 +81,26 @@ pub struct Game {
     */
     /// live board, updated as the game progresses
     pub board: Array2<i32>,
+
+    /// what level we're on, determines many variables
+    pub level: usize,
+
+    /// how many dots we've eaten, determines many events
+    pub dots_eaten: usize,
+
+    /// game settings for levels 1-20 and 21+
+    pub settings: Vec<GameSettingsRow>,
 }
 
+
 impl Game {
-    pub fn try_from_file(path: &Path) -> Result<Self, PacError> {
-        let txt = fs::read_to_string(path).map_err(|_| PacError::FileRead)?;
+    pub fn try_from_file(level_path: &Path, settings_path: &Path) -> Result<Self, PacError> {
+        // first read game settings
+        //settings_parser::try_from_file(settings_path);
+        let settings = try_settings_from_file(settings_path)?;
+
+        // then read level
+        let txt = fs::read_to_string(level_path).map_err(|_| PacError::FileReadLevel)?;
         let rows: Vec<Vec<char>> = txt.lines().map(|l| l.chars().collect::<Vec<_>>()).collect();
 
         if rows.is_empty() {
@@ -287,8 +313,26 @@ impl Game {
             clyde_loc: (gx as f64 + 5.5, gy as f64 + 2.0), //place clyde on the right of pinky
             board,
             lives: 3,
-            points: 0,
+            score: 0,
             warps,
+            level: 0,
+            dots_eaten: 0,
+            settings,
         })
+    }
+
+    /// Given a list of entities, return all chosen entities to their default positions
+    fn restart_positions(&mut self, entities: &[Entity]) {
+        let (px, py) = (self.pacman_spawn.0 as f64, self.pacman_spawn.1 as f64);
+        let (gx, gy) = (self.ghost_spawn.0 as f64, self.pacman_spawn.1 as f64);
+        for entity in entities {
+            match entity {
+                Entity::Blinky => self.blinky_loc = (gx + 0.5, gy - 1.0), //place blinky above the spawn
+                Entity::Pinky => self.pinky_loc = (gx + 3.5, gy + 2.0), //place pinky at the center of spawn
+                Entity::Inky => self.inky_loc = (gx + 1.5, gy + 2.0), //place inky on the left of pinky
+                Entity::Clyde => self.clyde_loc = (gx + 5.5, gy + 2.0), //place clyde on the right of pinky
+                Entity::PacMan => self.pacman_loc = (px + 0.5, py), //center pacman properly in his spawn
+            }
+        }
     }
 }
