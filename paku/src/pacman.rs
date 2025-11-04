@@ -1,12 +1,12 @@
-use csv::ReaderBuilder;
 use ndarray::Array2;
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
-use std::fs::File;
 use std::path::Path;
 
-use crate::{PacError, settings_parser::{self, GameSettingsRow, try_settings_from_file}};
+use crate::{
+    settings_parser::{try_settings_from_file, GameSettingsRow},
+    PacError,
+};
 
 /*
 NOTES:
@@ -21,14 +21,6 @@ Possibly spawn ghosts in this way:
 - Clyde after 3 dots eaten
 as this will space the ghosts apart by 1 tile, so no overlap
 */
-
-pub enum Entity {
-    Blinky,
-    Pinky,
-    Inky,
-    Clyde,
-    PacMan,
-}
 
 pub struct Game {
     /*
@@ -92,11 +84,9 @@ pub struct Game {
     pub settings: Vec<GameSettingsRow>,
 }
 
-
 impl Game {
     pub fn try_from_file(level_path: &Path, settings_path: &Path) -> Result<Self, PacError> {
         // first read game settings
-        //settings_parser::try_from_file(settings_path);
         let settings = try_settings_from_file(settings_path)?;
 
         // then read level
@@ -226,7 +216,6 @@ impl Game {
                 let c = rows[y][x];
                 if c.is_ascii_digit() {
                     let id = c.to_digit(10).unwrap() as u8;
-                    //*warp_counts.entry(id).or_default() += 1;
                     warp_coords.entry(id).or_default().push((x, y));
                     // mark consumed? we allow digits to remain to convert to warp values; but mark consumed to avoid double token handling
                     consumed[y][x] = true;
@@ -319,20 +308,5 @@ impl Game {
             dots_eaten: 0,
             settings,
         })
-    }
-
-    /// Given a list of entities, return all chosen entities to their default positions
-    fn restart_positions(&mut self, entities: &[Entity]) {
-        let (px, py) = (self.pacman_spawn.0 as f64, self.pacman_spawn.1 as f64);
-        let (gx, gy) = (self.ghost_spawn.0 as f64, self.pacman_spawn.1 as f64);
-        for entity in entities {
-            match entity {
-                Entity::Blinky => self.blinky_loc = (gx + 0.5, gy - 1.0), //place blinky above the spawn
-                Entity::Pinky => self.pinky_loc = (gx + 3.5, gy + 2.0), //place pinky at the center of spawn
-                Entity::Inky => self.inky_loc = (gx + 1.5, gy + 2.0), //place inky on the left of pinky
-                Entity::Clyde => self.clyde_loc = (gx + 5.5, gy + 2.0), //place clyde on the right of pinky
-                Entity::PacMan => self.pacman_loc = (px + 0.5, py), //center pacman properly in his spawn
-            }
-        }
     }
 }

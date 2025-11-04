@@ -2,16 +2,10 @@ use std::{fs::File, path::Path, str::FromStr};
 
 use csv::ReaderBuilder;
 use fraction::Fraction;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer};
 
 use crate::PacError;
 
-//pub fn try_from_file(path: &Path) {
-//    match GameSettingsRow::try_from_file(path) {
-//        Ok(x) => println!("{:?}", x),
-//        Err(x) => println!("{}\n{:?}", x, x),
-//    }
-//}
 pub fn try_settings_from_file(path: &Path) -> Result<Vec<GameSettingsRow>, PacError> {
     let file = File::open(path).map_err(|_| PacError::FileReadSettings)?;
     let mut rdr = ReaderBuilder::new().has_headers(true).from_reader(file);
@@ -77,6 +71,4 @@ pub struct GameSettingsRow {
 
     #[serde(rename = "Scatter3", deserialize_with = "deserialize_fraction")]
     pub scatter3: Fraction, // “1033” or “1/60” — we’ll handle below
-}
-impl GameSettingsRow {
 }

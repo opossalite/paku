@@ -1,4 +1,5 @@
 mod pacman;
+mod pacman_logic;
 mod tyrosine_wrap;
 mod settings_parser;
 
