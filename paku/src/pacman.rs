@@ -22,6 +22,33 @@ Possibly spawn ghosts in this way:
 as this will space the ghosts apart by 1 tile, so no overlap
 */
 
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+impl Direction {
+    pub fn opposite(self) -> Self {
+        match self {
+            Self::Up => Self::Down,
+            Self::Down => Self::Up,
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+        }
+    }
+}
+
+pub enum MapTile {
+    Empty,
+    Wall,
+    PacDot,
+    PowerPellet,
+    Warp(usize),
+}
+
 pub struct Game {
     /*
     note: these are 4x as fine as the tiles of the map
@@ -33,6 +60,12 @@ pub struct Game {
     pub inky_loc: (f64, f64),
     pub clyde_loc: (f64, f64),
 
+    pub pacman_dir: Direction,
+    pub blinky_dir: Direction,
+    pub pinky_dir: Direction,
+    pub inky_dir: Direction,
+    pub clyde_dir: Direction,
+
     /// left of the 2x1
     pub pacman_spawn: (usize, usize),
 
@@ -43,7 +76,7 @@ pub struct Game {
     pub lives: usize,
 
     /// exist in perfect pairs, we store their coordinates
-    pub warps: HashMap<i32, ((usize, usize), (usize, usize))>,
+    pub warps: HashMap<usize, ((usize, usize), (usize, usize))>,
 
     /*
     breakdown:
@@ -72,7 +105,8 @@ pub struct Game {
     3 = power pellet
     */
     /// live board, updated as the game progresses
-    pub board: Array2<i32>,
+    //pub board: Array2<i32>, //soon to be deprecated
+    pub map: Array2<MapTile>,
 
     /// what level we're on, determines many variables
     pub level: usize,
@@ -207,7 +241,7 @@ impl Game {
 
         // 3) Collect digits (warps)
         //let mut warp_counts: HashMap<u8, usize> = HashMap::new();
-        let mut warp_coords: HashMap<u8, Vec<(usize, usize)>> = HashMap::new();
+        let mut warp_coords: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
         for y in 0..height {
             for x in 0..width {
                 if consumed[y][x] {
@@ -215,7 +249,7 @@ impl Game {
                 }
                 let c = rows[y][x];
                 if c.is_ascii_digit() {
-                    let id = c.to_digit(10).unwrap() as u8;
+                    let id = c.to_digit(10).unwrap() as usize;
                     warp_coords.entry(id).or_default().push((x, y));
                     // mark consumed? we allow digits to remain to convert to warp values; but mark consumed to avoid double token handling
                     consumed[y][x] = true;
@@ -231,7 +265,7 @@ impl Game {
             }
 
             // ensure digits start at 1 and contiguous
-            let mut ids: Vec<u8> = warp_coords.keys().cloned().collect();
+            let mut ids: Vec<usize> = warp_coords.keys().cloned().collect();
             ids.sort();
             if ids[0] != 1 {
                 return Err(PacError::InvalidWarp);
@@ -245,37 +279,41 @@ impl Game {
                 return Err(PacError::InvalidWarp);
             }
         }
+        //let warps = warp_coords
+        //    .iter()
+        //    .map(|(id, coords)| (*id as i32 * -1, (coords[0], coords[1])))
+        //    .collect::<HashMap<i32, ((usize, usize), (usize, usize))>>();
         let warps = warp_coords
             .iter()
-            .map(|(id, coords)| (*id as i32 * -1, (coords[0], coords[1])))
-            .collect::<HashMap<i32, ((usize, usize), (usize, usize))>>();
+            .map(|(id, coords)| (*id, (coords[0], coords[1])))
+            .collect::<HashMap<usize, ((usize, usize), (usize, usize))>>();
 
         // Build the numeric board
         // row-major: iterate y then x
-        let mut flat: Vec<i32> = Vec::with_capacity(width * height);
+        let mut flat: Vec<MapTile> = Vec::with_capacity(width * height);
         for y in 0..height {
             for x in 0..width {
                 // if this cell was part of consumed multi-char token (like $$ or @ block) we already marked consumed and should treat it as empty (0),
                 // unless it's a digit (we marked digits consumed too).
                 let c = rows[y][x];
                 let value = match c {
-                    ' ' => 0,
-                    '#' => 1,
-                    '-' => 2,
-                    '!' => 3,
+                    ' ' => MapTile::Empty,
+                    '#' => MapTile::Wall,
+                    '-' => MapTile::PacDot,
+                    '!' => MapTile::PowerPellet,
                     '$' => {
                         // we have stored the location of the pac spawn, so $ is now treated as
                         // empty tiles
-                        0
+                        MapTile::Empty
                     }
                     '@' => {
                         // similar to $, we convert @ to a wall
-                        1
+                        MapTile::Wall
                     }
                     '1'..='9' => {
-                        let id = c.to_digit(10).unwrap() as i32;
+                        let id = c.to_digit(10).unwrap() as usize;
                         // warps stored as negative numbers: -id
-                        -id
+                        MapTile::Warp(id)
                     }
                     _ => {
                         return Err(PacError::InvalidCharacters);
@@ -285,7 +323,7 @@ impl Game {
             }
         }
 
-        let board = Array2::from_shape_vec((height, width), flat)
+        let map = Array2::from_shape_vec((height, width), flat)
             .map_err(|_| PacError::ConversionToArray)?;
 
         // spawns: place all ghosts at ghost_spawn and pacman at pacman_spawn
@@ -300,7 +338,13 @@ impl Game {
             pinky_loc: (gx as f64 + 3.5, gy as f64 + 2.0), //place pinky at the center of spawn
             inky_loc: (gx as f64 + 1.5, gy as f64 + 2.0), //place inky on the left of pinky
             clyde_loc: (gx as f64 + 5.5, gy as f64 + 2.0), //place clyde on the right of pinky
-            board,
+            pacman_dir: Direction::Up,
+            blinky_dir: Direction::Up,
+            pinky_dir: Direction::Up,
+            inky_dir: Direction::Up,
+            clyde_dir: Direction::Up,
+            //board,
+            map,
             lives: 3,
             score: 0,
             warps,
